@@ -1,0 +1,186 @@
+---
+title: "POMS16, REP30"
+---
+
+  
+```{r, echo=F, message=F, warning=F}
+library(lavaan)
+library(semTools)
+library(knitr)
+library(kableExtra)
+library(vtable)
+
+df <- foreign::read.spss("R30_POMS16.SAV", to.data.frame = T, max.value.labels = 0)
+dfdem <- foreign::read.spss("R30_POMS16.SAV", to.data.frame = T, max.value.labels = 99)
+
+df$GESCHLECHT <- factor(df$S1)
+#df <- df[df$GESCHLECHT %in% c(1,2),]
+
+df$ALTERSGRUPPEN <- NA
+df$ALTERSGRUPPEN[df$ALTER<=quantile(df$ALTER, .33)] <- 1
+df$ALTERSGRUPPEN[df$ALTER>=quantile(df$ALTER, .33)] <- 2
+df$ALTERSGRUPPEN[df$ALTER>=quantile(df$ALTER, .67)] <- 3
+df$ALTERSGRUPPEN <- factor(df$ALTERSGRUPPEN)
+
+
+
+dfdem$GESCHLECHT <- factor(dfdem$S1)
+#df <- df[df$GESCHLECHT %in% c(1,2),]
+
+dfdem$ALTERSGRUPPEN <- NA
+dfdem$ALTERSGRUPPEN[dfdem$ALTER<=quantile(dfdem$ALTER, .33)] <- 1
+dfdem$ALTERSGRUPPEN[dfdem$ALTER>=quantile(dfdem$ALTER, .33)] <- 2
+dfdem$ALTERSGRUPPEN[dfdem$ALTER>=quantile(dfdem$ALTER, .67)] <- 3
+dfdem$ALTERSGRUPPEN <- factor(dfdem$ALTERSGRUPPEN)
+
+
+#st(dfdem, vars=c("GESCHLECHT", "ALTERSGRUPPEN", "S4", "S10", "S14", "S15"))
+
+
+model <- "F1 =~ Q13_1 + Q13_5 + Q13_8 + Q13_14
+          F2 =~ Q13_2 + Q13_7 + Q13_10 + Q13_12
+          F3 =~ Q13_3 + Q13_13 + Q13_15 + Q13_16
+          F4 =~ Q13_4 + Q13_6 + Q13_9 + Q13_11"
+
+print("CFA")
+fit <- cfa(model, df, estimator="mlr", missing="fiml")
+fitmeasures(fit, fit.measures = c("chisq.scaled", "df", "pvalue.scaled", "cfi.robust", "tli.robust", "rmsea.scaled", "srmr"))
+print("Reliabilität, omega")
+reliability(fit)[4,]
+
+library(dynamic)
+b <- dynamic::cfaHB(fit, reps=20)
+b
+
+model <- "F1 =~ Q13_1 + Q13_5 + Q13_8 + Q13_14
+          + Q13_2 + Q13_7 + Q13_10 + Q13_12
+          + Q13_3 + Q13_13 + Q13_15 + Q13_16
+          + Q13_4 + Q13_6 + Q13_9 + Q13_11"
+
+fit <- cfa(model, df, estimator="mlr", missing="fiml")
+fitmeasures(fit, fit.measures = c("chisq.scaled", "df", "pvalue.scaled", "cfi.robust", "tli.robust", "rmsea.scaled", "srmr"))
+semTools::reliability(fit)
+
+#Geschlecht----
+print("Invarianztestung")
+
+print("Geschlecht")
+rbind(fitmeasures(cfa(model, df[df$GESCHLECHT %in% c(1,2),], estimator="mlr", missing="fiml", group = "GESCHLECHT", group.equal = c("")), fit.measures = c("chisq.scaled", "df", "cfi.robust", "rmsea.scaled")),
+      fitmeasures(cfa(model, df[df$GESCHLECHT %in% c(1,2),], estimator="mlr", missing="fiml", group = "GESCHLECHT", group.equal = c("loadings")), fit.measures = c("chisq.scaled", "df", "cfi.robust", "rmsea.scaled")),
+      fitmeasures(cfa(model, df[df$GESCHLECHT %in% c(1,2),], estimator="mlr", missing="fiml", group = "GESCHLECHT", group.equal = c("loadings", "intercepts")), fit.measures = c("chisq.scaled", "df", "cfi.robust", "rmsea.scaled")),
+      fitmeasures(cfa(model, df[df$GESCHLECHT %in% c(1,2),], estimator="mlr", missing="fiml", group = "GESCHLECHT", group.equal = c("loadings", "intercepts", "residuals")), fit.measures = c("chisq.scaled", "df", "cfi.robust", "rmsea.scaled")))
+
+
+#Alter----
+print("Altersgruppen")
+rbind(fitmeasures(cfa(model, df, estimator="mlr", missing="fiml", group = "ALTERSGRUPPEN", group.equal = c("")), fit.measures = c("chisq.scaled", "df", "cfi.robust", "rmsea.scaled")),
+      fitmeasures(cfa(model, df, estimator="mlr", missing="fiml", group = "ALTERSGRUPPEN", group.equal = c("loadings")), fit.measures = c("chisq.scaled", "df", "cfi.robust", "rmsea.scaled")),
+      fitmeasures(cfa(model, df, estimator="mlr", missing="fiml", group = "ALTERSGRUPPEN", group.equal = c("loadings", "intercepts")), fit.measures = c("chisq.scaled", "df", "cfi.robust", "rmsea.scaled")),
+      fitmeasures(cfa(model, df, estimator="mlr", missing="fiml", group = "ALTERSGRUPPEN", group.equal = c("loadings", "intercepts", "residuals")), fit.measures = c("chisq.scaled", "df", "cfi.robust", "rmsea.scaled")),
+      fitmeasures(cfa(model, df, estimator="mlr", missing="fiml", group = "ALTERSGRUPPEN", group.equal = c("loadings", "intercepts", "residuals"), group.partial=c("Q13_16~~Q13_16", "Q13_15~~Q13_15")), fit.measures = c("chisq.scaled", "df", "cfi.robust", "rmsea.scaled")))
+
+cat("Strikte Invarianz nicht erreichbar, durch Variation der Residuen \n
+      von Items 15 und 16 ist partielle strike Invarianz erreichbar.")
+
+#a <- partialInvariance(measurementInvariance(model=model, data=df, estimator="mlr", group="ALTERSGRUPPEN", strict=T, fit.measures = c("chisq.scaled", "df", "cfi.robust", "rmsea.scaled")), type = "strict")
+#a
+
+#library(ezCutoffs)
+#a <- ezCutoffs(model, data=df, n_rep = 100, estimator="mlr", fit_indices = c("chisq.scaled", "cfi.robust", "tli.robust", "rmsea.scaled", "srmr"))
+#plot(a)
+
+df$Anger <- rowSums(df[c("Q13_1", "Q13_5", "Q13_8", "Q13_14")])
+df$Fatigue <- rowSums(df[c("Q13_2", "Q13_7", "Q13_10", "Q13_12")])
+df$Vigor <- rowSums(df[c("Q13_3", "Q13_13", "Q13_15", "Q13_16")])
+df$Dejection <- rowSums(df[c("Q13_4", "Q13_6", "Q13_9", "Q13_11")])
+
+
+
+
+m <- lm(as.formula(paste0("Anger ~ GESCHLECHT * ALTERSGRUPPEN")), df)
+plot(m, 1)
+plot(m, 2)
+anova(m)
+
+m <- lm(as.formula(paste0("Fatigue ~ GESCHLECHT * ALTERSGRUPPEN")), df)
+plot(m, 1)
+plot(m, 2)
+anova(m)
+
+m <- lm(as.formula(paste0("Vigor ~ GESCHLECHT * ALTERSGRUPPEN")), df)
+plot(m, 1)
+plot(m, 2)
+anova(m)
+
+m <- lm(as.formula(paste0("Dejection ~ GESCHLECHT * ALTERSGRUPPEN")), df)
+plot(m, 1)
+plot(m, 2)
+anova(m)
+
+
+
+x <- "Anger"
+norms <- c(4:28)
+for (i in unique(df$GESCHLECHT)) {
+  for (k in unique(df$ALTERSGRUPPEN)) {
+    norms <- rbind(norms, round(100*cumsum(table(df[df$GESCHLECHT==i & df$ALTERSGRUPPEN==k, x]))/sum(!is.na(df[df$GESCHLECHT==i & df$ALTERSGRUPPEN==k, x])),1))
+  }
+}
+norms <- t(norms[-1,])
+names(norms) <- c("Männlich_<=36", "Männlich_<=55", "Männlich_>55", "Weiblich_<=36", "Weiblich_<=55", "Weiblich_>55")
+write.csv2(norms, paste0("Normwerte ", x, ".csv"))
+kable(norms, caption = paste0("Normwerte ", x))
+
+
+x <- "Fatigue"
+norms <- c(4:28)
+for (i in unique(df$GESCHLECHT)) {
+  for (k in unique(df$ALTERSGRUPPEN)) {
+    norms <- rbind(norms, round(100*cumsum(table(df[df$GESCHLECHT==i & df$ALTERSGRUPPEN==k, x]))/sum(!is.na(df[df$GESCHLECHT==i & df$ALTERSGRUPPEN==k, x])),1))
+  }
+}
+norms <- t(norms[-1,])
+names(norms) <- c("Männlich_<=36", "Männlich_<=55", "Männlich_>55", "Weiblich_<=36", "Weiblich_<=55", "Weiblich_>55")
+write.csv2(norms, paste0("Normwerte ", x, ".csv"))
+kable(norms, caption = paste0("Normwerte ", x))
+
+
+x <- "Vigor"
+norms <- c(4:28)
+for (i in unique(df$GESCHLECHT)) {
+  for (k in unique(df$ALTERSGRUPPEN)) {
+    norms <- rbind(norms, round(100*cumsum(table(df[df$GESCHLECHT==i & df$ALTERSGRUPPEN==k, x]))/sum(!is.na(df[df$GESCHLECHT==i & df$ALTERSGRUPPEN==k, x])),1))
+  }
+}
+norms <- t(norms[-1,])
+names(norms) <- c("Männlich_<=36", "Männlich_<=55", "Männlich_>55", "Weiblich_<=36", "Weiblich_<=55", "Weiblich_>55")
+write.csv2(norms, paste0("Normwerte ", x, ".csv"))
+kable(norms, caption = paste0("Normwerte ", x))
+
+
+x <- "Dejection"
+norms <- c(4:28)
+for (i in unique(df$GESCHLECHT)) {
+  for (k in unique(df$ALTERSGRUPPEN)) {
+    norms <- rbind(norms, round(100*cumsum(table(df[df$GESCHLECHT==i & df$ALTERSGRUPPEN==k, x]))/sum(!is.na(df[df$GESCHLECHT==i & df$ALTERSGRUPPEN==k, x])),1))
+  }
+}
+norms <- t(norms[-1,])
+names(norms) <- c("Männlich_<=36", "Männlich_<=55", "Männlich_>55", "Weiblich_<=36", "Weiblich_<=55", "Weiblich_>55")
+write.csv2(norms, paste0("Normwerte ", x, ".csv"))
+kable(norms, caption = paste0("Normwerte ", x))
+
+df$GESCHLECHT <- factor(df$GESCHLECHT)
+df$ALTERSGRUPPEN <- factor(df$ALTERSGRUPPEN)
+st(df, vars=c("GESCHLECHT", "ALTERSGRUPPEN"))
+
+st(df, "ALTER")
+st(df, vars = "Anger", group = "GESCHLECHT")
+st(df, vars = "Fatigue", group = "GESCHLECHT")
+st(df, vars = "Vigor", group = "GESCHLECHT")
+st(df, vars = "Dejection", group = "GESCHLECHT")
+st(df, vars = "Anger", group = "ALTERSGRUPPEN")
+st(df, vars = "Fatigue", group = "ALTERSGRUPPEN")
+st(df, vars = "Vigor", group = "ALTERSGRUPPEN")
+st(df, vars = "Dejection", group = "ALTERSGRUPPEN")
+```
