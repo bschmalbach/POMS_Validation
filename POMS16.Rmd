@@ -49,7 +49,7 @@ print("Reliabilität, omega")
 reliability(fit)[4,]
 
 library(dynamic)
-b <- dynamic::cfaHB(fit, reps=20)
+b <- dynamic::cfaHB(fit)
 b
 
 model <- "F1 =~ Q13_1 + Q13_5 + Q13_8 + Q13_14
