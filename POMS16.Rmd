@@ -13,6 +13,17 @@ library(vtable)
 df <- foreign::read.spss("R30_POMS16.SAV", to.data.frame = T, max.value.labels = 0)
 dfdem <- foreign::read.spss("R30_POMS16.SAV", to.data.frame = T, max.value.labels = 99)
 
+
+#Check Missingness
+table(rowSums(is.na(df[21:36]))>0)
+
+#Check skewness
+for (i in 21:36) {
+  print(moments::skewness(df[[i]]))
+}
+
+
+#Make sociodemographic grouping variables
 df$GESCHLECHT <- factor(df$S1)
 #df <- df[df$GESCHLECHT %in% c(1,2),]
 
@@ -33,9 +44,27 @@ dfdem$ALTERSGRUPPEN[dfdem$ALTER>=quantile(dfdem$ALTER, .33)] <- 2
 dfdem$ALTERSGRUPPEN[dfdem$ALTER>=quantile(dfdem$ALTER, .67)] <- 3
 dfdem$ALTERSGRUPPEN <- factor(dfdem$ALTERSGRUPPEN)
 
+#Sociodemographic analysis, Table 1
+st(dfdem, vars=c("GESCHLECHT", "ALTERSGRUPPEN", "S4", "S10", "S14", "S15"))
 
-#st(dfdem, vars=c("GESCHLECHT", "ALTERSGRUPPEN", "S4", "S10", "S14", "S15"))
+#POMS items in the data set
 
+# Q13_1 = Angry
+# Q13_2 = Peeved
+# Q13_3 = Annoyed
+# Q13_4 = Furious
+# Q13_5 = Uncertain About Things
+# Q13_6 = Hopeless
+# Q13_7 = Discouraged
+# Q13_8 = Gloomy
+# Q13_9 = Worn Out
+# Q13_10 = Fatigued
+# Q13_11 = Exhausted
+# Q13_12 = Weary
+# Q13_13 = Lively
+# Q13_14 = Alert
+# Q13_15 = Full of Pep
+# Q13_16 = Vigorous
 
 model <- "F1 =~ Q13_1 + Q13_5 + Q13_8 + Q13_14
           F2 =~ Q13_2 + Q13_7 + Q13_10 + Q13_12
@@ -61,6 +90,8 @@ fit <- cfa(model, df, estimator="mlr", missing="fiml")
 fitmeasures(fit, fit.measures = c("chisq.scaled", "df", "pvalue.scaled", "cfi.robust", "tli.robust", "rmsea.scaled", "srmr"))
 semTools::reliability(fit)
 
+
+#Tests of measurement invariance
 #Geschlecht----
 print("Invarianztestung")
 
@@ -82,12 +113,7 @@ rbind(fitmeasures(cfa(model, df, estimator="mlr", missing="fiml", group = "ALTER
 cat("Strikte Invarianz nicht erreichbar, durch Variation der Residuen \n
       von Items 15 und 16 ist partielle strike Invarianz erreichbar.")
 
-#a <- partialInvariance(measurementInvariance(model=model, data=df, estimator="mlr", group="ALTERSGRUPPEN", strict=T, fit.measures = c("chisq.scaled", "df", "cfi.robust", "rmsea.scaled")), type = "strict")
-#a
-
-#library(ezCutoffs)
-#a <- ezCutoffs(model, data=df, n_rep = 100, estimator="mlr", fit_indices = c("chisq.scaled", "cfi.robust", "tli.robust", "rmsea.scaled", "srmr"))
-#plot(a)
+#make sum scores for group comparisons and norm values
 
 df$Anger <- rowSums(df[c("Q13_1", "Q13_5", "Q13_8", "Q13_14")])
 df$Fatigue <- rowSums(df[c("Q13_2", "Q13_7", "Q13_10", "Q13_12")])
@@ -95,7 +121,7 @@ df$Vigor <- rowSums(df[c("Q13_3", "Q13_13", "Q13_15", "Q13_16")])
 df$Dejection <- rowSums(df[c("Q13_4", "Q13_6", "Q13_9", "Q13_11")])
 
 
-
+#anovas of sum scores
 
 m <- lm(as.formula(paste0("Anger ~ GESCHLECHT * ALTERSGRUPPEN")), df)
 plot(m, 1)
@@ -117,7 +143,7 @@ plot(m, 1)
 plot(m, 2)
 anova(m)
 
-
+#norm values
 
 x <- "Anger"
 norms <- c(4:28)
@@ -169,6 +195,8 @@ norms <- t(norms[-1,])
 names(norms) <- c("Männlich_<=36", "Männlich_<=55", "Männlich_>55", "Weiblich_<=36", "Weiblich_<=55", "Weiblich_>55")
 write.csv2(norms, paste0("Normwerte ", x, ".csv"))
 kable(norms, caption = paste0("Normwerte ", x))
+
+#more sociodemographics
 
 df$GESCHLECHT <- factor(df$GESCHLECHT)
 df$ALTERSGRUPPEN <- factor(df$ALTERSGRUPPEN)
